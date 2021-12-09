@@ -1,0 +1,63 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    
+    - uses: actions/checkout@master
+    
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Create ACR
+      id: create-acr
+      run: |
+        az acr create -n procesoscurso20 -g procesoscurso208d86-rg --location "West US 2" --sku Standard --admin-enabled
+        echo "::set-output name=acr_username::`az acr credential show -n procesoscurso20 --query username | xargs`"
+        echo "::set-output name=acr_password::`az acr credential show -n procesoscurso20 --query passwords[0].value | xargs`"
+        echo "::add-mask::`az acr credential show -n procesoscurso20 --query passwords[0].value | xargs`"
+
+    - uses: azure/docker-login@v1
+      with:
+        login-server: procesoscurso20.azurecr.io
+        username: ${{ steps.create-acr.outputs.acr_username }}
+        password: ${{ steps.create-acr.outputs.acr_password }}
+
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/src/KodotiAzureDevOps.Api" -f  "src/KodotiAzureDevOps.Api/Dockerfile" -t procesoscurso20.azurecr.io/procesos:${{ github.sha }} --label dockerfile-path=src/KodotiAzureDevOps.Api/Dockerfile
+        docker push procesoscurso20.azurecr.io/procesos:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      id: login
+      with:
+         kubeconfig: ${{ secrets.aks_procesos_kubeConfig }}
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep procesosa685 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace procesosa685`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: procesosa685
+        container-registry-url: procesoscurso20.azurecr.io
+        container-registry-username: ${{ steps.create-acr.outputs.acr_username }}
+        container-registry-password: ${{ steps.create-acr.outputs.acr_password }}
+        secret-name: procesosdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: procesosa685
+        manifests: |
+          manifests/deployment-1.yml
+          manifests/service-1.yml
+        images: |
+          procesoscurso20.azurecr.io/procesos:${{ github.sha }}
+        imagepullsecrets: |
+          procesosdockerauth   
