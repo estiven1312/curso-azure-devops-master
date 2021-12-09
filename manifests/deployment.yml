@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "procesossoftware-180d"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "procesossoftware-180d"
+  template:
+    metadata:
+      labels:
+        app: "procesossoftware-180d"
+    spec:
+      containers:
+        - name: "procesossoftware-180d"
+          image: "procesossoftware.azurecr.io/procesossoftware"
+          ports:
+          - containerPort: 80
