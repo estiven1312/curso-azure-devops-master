@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "procesos-ca06"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "procesos-ca06"
+  template:
+    metadata:
+      labels:
+        app: "procesos-ca06"
+    spec:
+      containers:
+        - name: "procesos-ca06"
+          image: "procesoscurso20.azurecr.io/procesos"
+          ports:
+          - containerPort: 80
